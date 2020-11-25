@@ -1,4 +1,4 @@
-def deploy(string build) {
+def deploy(String build) {
     sh "echo deploy ${build}"
     clean()
 }
