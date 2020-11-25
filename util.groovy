@@ -1,9 +1,9 @@
-def deploy(){
-    sh 'deploy'
+def deploy() {
+    sh 'echo deploy'
 }
 
-def clean(){
-    sh 'clean'
+def clean() {
+    sh 'echo clean'
 }
 
 return this;
