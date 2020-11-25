@@ -2,8 +2,7 @@
 
 import com.trendmicro.tp.Util
 
-def ticket = 'TIP-NA'
-
+def functions;
 pipeline {
     agent any
 
@@ -53,10 +52,20 @@ pipeline {
                 ]
             }
         }
+
+        stage('Load Functions') {
+            steps {
+                script {
+                    functions = load("${env.CHECKOUT_DIR}/cli-pipeline.groovy")
+                }
+            }
+        }
         
         stage('Execute') {
             steps {
-                rollback(params.stage, params.version)
+                script{
+                    functions.execute(params.stage, params.version)
+                }
             }    
         }
     }
@@ -66,37 +75,28 @@ pipeline {
             dir(CHECKOUT_DIR) {
                 script {
                     def util = new Util()
-
                     def athere = currentBuild.result != null && currentBuild.result != 'SUCCESS'
                     def commitMessage = gitCommitSubject commit: GIT_TAG
                     commitMessage = util.formatCommitMessageForSlack(commitMessage, params.service)
-                    echo commitMessage
+                    slackNotify(SLACK_CHANNEL, currentBuild.result, "\n${commitMessage}", athere)
+                    if (params.pipelineSlackChannel != '') {
+                        slackNotify(params.pipelineSlackChannel, currentBuild.result, "\n${commitMessage}", athere)
+                    }
                 }
             }
         }
         success {
-            success(params.stage, params.version)
+            script{
+                functions.success(params.stage, params.version)
+            }
         }
         unsuccessful {
-            rollback(params.stage, params.version)
+            script{
+                functions.rollback(params.stage, params.version)
+            }
         }
         cleanup {
             cleanWs()
         }
     }
-}
-
-
-def execute(String stage, String version) {
-    sh "aws s3 cp s3://network-security-static-ui-rnd-us-east-1/$version s3://network-security-static-ui-${stage}-us-east-1/_network --recursive --acl bucket-owner-full-control"
-}
-
-def success(String stage, String version) {
-    sh "aws s3api put-bucket-tagging --bucket network-security-static-ui-${stage}-us-east-1 --tagging 'TagSet=[{Key=version, Value=${version}}]'"
-}
-
-def rollback(String stage, String version) {
-    old_version = sh(script:"aws s3api get-bucket-tagging --bucket network-security-static-ui-${stage}-us-east-1  | grep -A1 \"Key.*version\" | grep -v \"Key.*version\" | cut -d: -f2 | xargs", returnStdout: true).trim()
-    sh "roll back to version ${old_version}"
-    execute(stage, old_version)
 }
