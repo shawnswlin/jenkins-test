@@ -1,5 +1,5 @@
-def deploy() {
-    sh 'echo deploy'
+def deploy(string build) {
+    sh "echo deploy ${build}"
 }
 
 def clean() {
